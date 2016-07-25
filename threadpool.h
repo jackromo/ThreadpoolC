@@ -12,6 +12,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <glib.h>
+#include <stdbool.h>
 
 
 /*
