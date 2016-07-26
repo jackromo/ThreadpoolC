@@ -27,8 +27,8 @@ typedef struct {
 // Job functions
 
 job job_new(void *params, void (* work_func)(void *));
-void job_free(job);
-void job_exec(job);
+void job_free(job *);
+void job_exec(job *);
 
 /*
  * jobqueue: A linked list of jobs to execute.
@@ -37,14 +37,14 @@ void job_exec(job);
  */
 typedef struct {
     int num_jobs;   // number of jobs
-    GList *queue;   // actual linked list of jobs
-    GList *queue_back;  // final entry in queue, to append new jobs to
-} jobqueue ;
+    GSList *head;  // linked list of jobs
+    GSList *tail;  // final entry in queue, to append new jobs to
+} jobqueue;
 
 // Jobqueue functions
 
 jobqueue jobqueue_new();
-void jobqueue_push(jobqueue *, job new_job);
+void jobqueue_push(jobqueue *, job *new_job);
 job jobqueue_pop(jobqueue *);
 int jobqueue_num_jobs(jobqueue);
 void jobqueue_free(jobqueue *);
