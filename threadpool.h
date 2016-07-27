@@ -45,7 +45,7 @@ typedef struct {
 
 jobqueue jobqueue_new();
 void jobqueue_push(jobqueue *, job *new_job);
-job jobqueue_pop(jobqueue *);
+job *jobqueue_pop(jobqueue *);
 int jobqueue_num_jobs(jobqueue);
 void jobqueue_free(jobqueue *);
 
@@ -79,12 +79,14 @@ typedef struct {
     worker *workers;    // array of workers
     jobqueue queue;     // public jobqueue
     pthread_t dispatcher;   // thread to dispatch jobs
+    bool working;       // whether pool is operational or not
+    pthread_mutex_t queue_mutex;    // mutex on threadpool queue
 } threadpool;
 
 // Threadpool functions
 
 threadpool threadpool_new(int num_workers);
-void threadpool_add_job(threadpool *pool, job job);
+void threadpool_add_job(threadpool *pool, job *job);
 void threadpool_start(threadpool *pool);
 int threadpool_jobs_left(threadpool *pool);
 void threadpool_finish(threadpool *);

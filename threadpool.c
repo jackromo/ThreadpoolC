@@ -49,14 +49,14 @@ void jobqueue_push(jobqueue *queue, job *new_job) {
         queue->tail = queue->tail->next;
 }
 
-job jobqueue_pop(jobqueue *queue) {
+job *jobqueue_pop(jobqueue *queue) {
     if(queue->num_jobs > 0) {
         job *next_job = (job *) (queue->head->data);
         queue->head = g_slist_delete_link(queue->head, queue->head);
         queue->num_jobs--;
         if(queue->num_jobs == 0)
             queue->head = queue->tail = NULL;
-        return *next_job;
+        return next_job;
     } else {
         printf("Error: Attempted to pop value from empty queue");
         exit(EXIT_FAILURE);
@@ -82,10 +82,10 @@ void *worker_pthread_work(void *own_worker) {
     while(work->working) {
         if(jobqueue_num_jobs(work->queue) > 0) {
             pthread_mutex_lock(&(work->queue_mutex));
-            job next_job = jobqueue_pop(&(work->queue));
+            job *next_job = jobqueue_pop(&(work->queue));
             pthread_mutex_unlock(&(work->queue_mutex));
-            job_exec(&next_job);
-            job_free(&next_job);
+            job_exec(next_job);
+            job_free(next_job);
         }
     }
     pthread_exit(NULL);
@@ -132,28 +132,69 @@ void worker_free(worker *work) {
 
 // Threadpool functions
 
-threadpool threadpool_new(int num_workers) {
-    //
+// actual threadpool dispatcher thread function
+void *dispatch_jobs(void *tpool) {
+    threadpool *pool = (threadpool *) tpool;
+    // loop through all workers in circular fashion, giving jobs to each
+    for(int i = 0; pool->working; i = (i+1) % pool->num_workers) {
+        if(jobqueue_num_jobs(pool->queue) > 0) {
+            pthread_mutex_lock(&(pool->queue_mutex));
+            job *new_job = jobqueue_pop(&(pool->queue));
+            pthread_mutex_unlock(&(pool->queue_mutex));
+            pthread_mutex_lock(&(pool->workers[i].queue_mutex));
+            jobqueue_push(&(pool->workers[i].queue), new_job);
+            pthread_mutex_unlock(&(pool->workers[i].queue_mutex));
+        }
+    }
+    pthread_exit(NULL);
 }
 
-void threadpool_add_job(threadpool *pool, job job) {
-    //
+threadpool threadpool_new(int num_workers) {
+    threadpool pool;
+    pool.num_workers = num_workers;
+    pool.workers = malloc(sizeof(worker) * pool.num_workers);
+    if(pool.workers == NULL) {
+        printf("Error: could not allocate memory for threadpool workers in threadpool_new");
+        exit(EXIT_FAILURE);
+    }
+    for(int i = 0; i < pool.num_workers; i++) {
+        pool.workers[i] = worker_new();
+    }
+    pool.queue = jobqueue_new();
+    return pool;
+}
+
+void threadpool_add_job(threadpool *pool, job *job) {
+    pthread_mutex_lock(&(pool->queue_mutex));
+    jobqueue_push(&(pool->queue), job);
+    pthread_mutex_unlock(&(pool->queue_mutex));
 }
 
 void threadpool_start(threadpool *pool) {
-    //
+    int retval = pthread_create(&(pool->dispatcher), NULL, dispatch_jobs, (void *) pool);
+    if(retval) {
+        printf("Error: Could not initialize thread in worker_new");
+        exit(EXIT_FAILURE);
+    }
 }
 
 int threadpool_jobs_left(threadpool *pool) {
-    //
+    pthread_mutex_lock(&(pool->queue_mutex));
+    int jobs_left = jobqueue_num_jobs(pool->queue);
+    pthread_mutex_unlock(&(pool->queue_mutex));
+    return jobs_left;
 }
 
 void threadpool_finish(threadpool *pool) {
-    //
+    pool->working = false;
+    pthread_join(pool->dispatcher, NULL);
 }
 
 void threadpool_free(threadpool *pool) {
-    //
+    for(int i = 0; i < pool->num_workers; i++) {
+        worker_free(&(pool->workers[i]));
+    }
+    free(pool);
 }
 
 
