@@ -57,14 +57,16 @@ void jobqueue_free(jobqueue *);
 typedef struct {
     jobqueue queue;     // private queue of jobs
     pthread_t thread;   // id of worker thread
+    pthread_mutex_t queue_mutex;    // mutex on job queue
+    bool working;       // whether worker is active or not
 } worker;
 
 // Worker functions
 
 worker worker_new();
 void worker_start(worker *);
-bool worker_get_job_count(worker);
-void worker_push_job(worker *);
+bool worker_get_job_count(worker *);
+void worker_push_job(worker *, job *);
 void worker_close(worker *);
 void worker_free(worker *);
 

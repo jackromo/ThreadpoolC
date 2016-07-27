@@ -76,32 +76,58 @@ void jobqueue_free(jobqueue *queue) {
 
 // Worker functions
 
-void worker_pthread_work(worker *work) {
-    // actual thread function
+// actual thread function
+void *worker_pthread_work(void *own_worker) {
+    worker *work = (worker *) own_worker;
+    while(work->working) {
+        if(jobqueue_num_jobs(work->queue) > 0) {
+            pthread_mutex_lock(&(work->queue_mutex));
+            job next_job = jobqueue_pop(&(work->queue));
+            pthread_mutex_unlock(&(work->queue_mutex));
+            job_exec(&next_job);
+            job_free(&next_job);
+        }
+    }
+    pthread_exit(NULL);
 }
 
 worker worker_new() {
-    //
+    worker work;
+    work.queue = jobqueue_new();
+    pthread_mutex_init(&(work.queue_mutex), NULL);
+    work.working = true;
+    return work;
 }
 
 void worker_start(worker *work) {
-    //
+    int retval = pthread_create(&(work->thread), NULL, worker_pthread_work, (void *) work);
+    if(retval) {
+        printf("Error: Could not initialize thread in worker_new");
+        exit(EXIT_FAILURE);
+    }
 }
 
-bool worker_get_job_count(worker work) {
-    //
+bool worker_get_job_count(worker *work) {
+    pthread_mutex_lock(&(work->queue_mutex));
+    return jobqueue_num_jobs(work->queue);
+    pthread_mutex_unlock(&(work->queue_mutex));
 }
 
-void worker_push_job(worker *work) {
-    //
+void worker_push_job(worker *work, job *new_job) {
+    pthread_mutex_lock(&(work->queue_mutex));
+    jobqueue_push(&(work->queue), new_job);
+    pthread_mutex_unlock(&(work->queue_mutex));
 }
 
 void worker_close(worker *work) {
-    //
+    work->working = false;      // no lock needed, only modification point
+    pthread_join(work->thread, NULL);
 }
 
 void worker_free(worker *work) {
-    //
+    worker_close(work);
+    jobqueue_free(&(work->queue));
+    free(work);
 }
 
 // Threadpool functions
