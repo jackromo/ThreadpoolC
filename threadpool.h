@@ -26,7 +26,7 @@ typedef struct {
 
 // Job functions
 
-job job_new(void *params, void (* work_func)(void *));
+job *job_new(void *params, void (* work_func)(void *));
 void job_free(job *);
 void job_exec(job *);
 
@@ -43,7 +43,7 @@ typedef struct {
 
 // Jobqueue functions
 
-jobqueue jobqueue_new();
+jobqueue *jobqueue_new();
 void jobqueue_push(jobqueue *, job *new_job);
 job *jobqueue_pop(jobqueue *);
 int jobqueue_num_jobs(jobqueue);
@@ -63,7 +63,7 @@ typedef struct {
 
 // Worker functions
 
-worker worker_new();
+worker *worker_new();
 void worker_start(worker *);
 bool worker_get_job_count(worker *);
 void worker_push_job(worker *, job *);
@@ -85,7 +85,7 @@ typedef struct {
 
 // Threadpool functions
 
-threadpool threadpool_new(int num_workers);
+threadpool *threadpool_new(int num_workers);
 void threadpool_add_job(threadpool *pool, job *job);
 void threadpool_start(threadpool *pool);
 int threadpool_jobs_left(threadpool *pool);

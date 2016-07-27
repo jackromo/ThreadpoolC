@@ -16,11 +16,15 @@
 
 // Job functions
 
-job job_new(void *params, void (* work_func)(void *)) {
-    job job;
-    job.params = params;
-    job.work = work_func;
-    return job;
+job *job_new(void *params, void (* work_func)(void *)) {
+    job *new_job = malloc(sizeof(job));
+    if(new_job == NULL) {
+        printf("Error: could not allocate new job");
+        exit(EXIT_FAILURE);
+    }
+    new_job->params = params;
+    new_job->work = work_func;
+    return new_job;
 }
 
 void job_free(job *job) {
@@ -34,10 +38,14 @@ void job_exec(job *job) {
 
 // Jobqueue functions
 
-jobqueue jobqueue_new() {
-    jobqueue queue;
-    queue.num_jobs = 0;
-    queue.head = queue.tail = NULL;
+jobqueue *jobqueue_new() {
+    jobqueue *queue = malloc(sizeof(jobqueue));
+    if(queue == NULL) {
+        printf("Error: could not allocate new jobqueue");
+        exit(EXIT_FAILURE);
+    }
+    queue->num_jobs = 0;
+    queue->head = queue->tail = NULL;
     return queue;
 }
 
@@ -93,11 +101,15 @@ void *worker_pthread_work(void *own_worker) {
     pthread_exit(NULL);
 }
 
-worker worker_new() {
-    worker work;
-    work.queue = jobqueue_new();
-    pthread_mutex_init(&(work.queue_mutex), NULL);
-    work.working = true;
+worker *worker_new() {
+    worker *work = malloc(sizeof(worker));
+    if(work == NULL) {
+        printf("Error: could not allocate new worker");
+        exit(EXIT_FAILURE);
+    }
+    work->queue = *jobqueue_new();
+    pthread_mutex_init(&(work->queue_mutex), NULL);
+    work->working = true;
     return work;
 }
 
@@ -155,20 +167,24 @@ void *dispatch_jobs(void *tpool) {
     pthread_exit(NULL);
 }
 
-threadpool threadpool_new(int num_workers) {
-    threadpool pool;
-    pool.num_workers = num_workers;
-    pool.workers = malloc(sizeof(worker) * pool.num_workers);
-    if(pool.workers == NULL) {
+threadpool *threadpool_new(int num_workers) {
+    threadpool *pool = malloc(sizeof(threadpool));
+    if(pool == NULL) {
+        printf("Error: could not allocate new threadpool");
+        exit(EXIT_FAILURE);
+    }
+    pool->num_workers = num_workers;
+    pool->workers = malloc(sizeof(worker) * pool->num_workers);
+    if(pool->workers == NULL) {
         printf("Error: could not allocate memory for threadpool workers in threadpool_new");
         exit(EXIT_FAILURE);
     }
-    for(int i = 0; i < pool.num_workers; i++) {
-        pool.workers[i] = worker_new();
+    for(int i = 0; i < pool->num_workers; i++) {
+        pool->workers[i] = *worker_new();
     }
-    pthread_mutex_init(&(pool.queue_mutex), NULL);
-    pool.queue = jobqueue_new();
-    pool.working = false;
+    pthread_mutex_init(&(pool->queue_mutex), NULL);
+    pool->queue = *jobqueue_new();
+    pool->working = false;
     return pool;
 }
 
@@ -213,5 +229,4 @@ void threadpool_free(threadpool *pool) {
     free(pool->workers);
     free(pool);
 }
-
 
