@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <glib.h>
+#include <unistd.h>
 
 
 // Job functions
@@ -28,7 +29,7 @@ void job_free(job *job) {
 }
 
 void job_exec(job *job) {
-    job->work(job->params);
+    (*(job->work))(job->params);
 }
 
 // Jobqueue functions
@@ -87,6 +88,7 @@ void *worker_pthread_work(void *own_worker) {
             job_exec(next_job);
             job_free(next_job);
         }
+        usleep(1000);
     }
     pthread_exit(NULL);
 }
@@ -109,8 +111,9 @@ void worker_start(worker *work) {
 
 bool worker_get_job_count(worker *work) {
     pthread_mutex_lock(&(work->queue_mutex));
-    return jobqueue_num_jobs(work->queue);
+    int count = jobqueue_num_jobs(work->queue);
     pthread_mutex_unlock(&(work->queue_mutex));
+    return count;
 }
 
 void worker_push_job(worker *work, job *new_job) {
@@ -126,7 +129,9 @@ void worker_close(worker *work) {
 
 void worker_free(worker *work) {
     worker_close(work);
-    jobqueue_free(&(work->queue));
+    while(work->queue.num_jobs > 0) {
+        jobqueue_pop(&(work->queue));
+    }
     free(work);
 }
 
@@ -145,6 +150,7 @@ void *dispatch_jobs(void *tpool) {
             jobqueue_push(&(pool->workers[i].queue), new_job);
             pthread_mutex_unlock(&(pool->workers[i].queue_mutex));
         }
+        usleep(1000);
     }
     pthread_exit(NULL);
 }
@@ -160,7 +166,9 @@ threadpool threadpool_new(int num_workers) {
     for(int i = 0; i < pool.num_workers; i++) {
         pool.workers[i] = worker_new();
     }
+    pthread_mutex_init(&(pool.queue_mutex), NULL);
     pool.queue = jobqueue_new();
+    pool.working = false;
     return pool;
 }
 
@@ -171,6 +179,10 @@ void threadpool_add_job(threadpool *pool, job *job) {
 }
 
 void threadpool_start(threadpool *pool) {
+    pool->working = true;
+    for(int i = 0; i < pool->num_workers; i++) {
+        worker_start(&(pool->workers[i]));
+    }
     int retval = pthread_create(&(pool->dispatcher), NULL, dispatch_jobs, (void *) pool);
     if(retval) {
         printf("Error: Could not initialize thread in worker_new");
@@ -192,8 +204,13 @@ void threadpool_finish(threadpool *pool) {
 
 void threadpool_free(threadpool *pool) {
     for(int i = 0; i < pool->num_workers; i++) {
-        worker_free(&(pool->workers[i]));
+        // cannot use worker_free here bc need to free entire array together
+        worker_close(&(pool->workers[i]));
+        while(pool->workers[i].queue.num_jobs > 0) {
+            jobqueue_pop(&(pool->workers[i].queue));
+        }
     }
+    free(pool->workers);
     free(pool);
 }
 
