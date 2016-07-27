@@ -69,7 +69,7 @@ int jobqueue_num_jobs(jobqueue queue) {
 
 void jobqueue_free(jobqueue *queue) {
     while(queue->num_jobs > 0) {
-        job next_job = jobqueue_pop(queue);
+        jobqueue_pop(queue);
     }
     free(queue);
 }
